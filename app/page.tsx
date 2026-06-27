@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Mail, Shield, Users, ArrowRight, Wallet, TrendingUp, AlertTriangle } from "lucide-react";
+import { Mail, Shield, Users, ArrowRight, Wallet, TrendingUp, AlertTriangle, Lock, Zap, Eye, CheckCircle, ChevronRight } from "lucide-react";
 import { getParentPin } from "@/lib/security";
+
+import ThemeToggle from "@/app/components/ThemeToggle";
 
 interface UserRecord {
   uid: string;
@@ -11,208 +13,317 @@ interface UserRecord {
   lastSynced?: string;
 }
 
+const FEATURES = [
+  { icon: Zap,   label: "Instant sync",       desc: "Auto-ingests Gmail bank alerts in seconds" },
+  { icon: Eye,   label: "Spending categories", desc: "AI categorizes every transaction automatically" },
+  { icon: Lock,  label: "PIN-protected",       desc: "Parents verify via a secure 4-digit PIN" },
+];
+
+const BANKS = ["NayaPay", "Easypaisa", "ABL", "Meezan", "HBL", "SadaPay"];
+
 export default function Home() {
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [usersList, setUsersList] = useState<UserRecord[]>([]);
+  const [errorMsg, setErrorMsg]             = useState<string | null>(null);
+  const [usersList, setUsersList]           = useState<UserRecord[]>([]);
   const [selectedParentUser, setSelectedParentUser] = useState<string>("");
   const [parentPinInput, setParentPinInput] = useState<string>("");
-  const [pinError, setPinError] = useState<string | null>(null);
+  const [pinError, setPinError]             = useState<string | null>(null);
+  const [pinLoading, setPinLoading]         = useState(false);
+  const [showPin, setShowPin]               = useState(false);
 
   useEffect(() => {
-    // Read query parameters for errors
     const params = new URLSearchParams(window.location.search);
     const err = params.get("error");
     const msg = params.get("msg");
+    if (err === "exchange_failed") setErrorMsg(`Failed to exchange Google OAuth code: ${msg || "Unknown error"}`);
+    else if (err === "missing_code") setErrorMsg("OAuth authorization code was not returned by Google.");
+    else if (err) setErrorMsg(`Authentication failed: ${err}`);
 
-    if (err) {
-      if (err === "exchange_failed") {
-        setErrorMsg(`Failed to exchange Google OAuth code: ${msg || "Unknown error"}`);
-      } else if (err === "missing_code") {
-        setErrorMsg("OAuth authorization code was not returned by Google.");
-      } else {
-        setErrorMsg(`Authentication failed: ${err}`);
-      }
-    }
-
-    // Fetch existing registered users
     fetch("/api/users")
-      .then((res) => res.json())
-      .then((data) => {
+      .then(r => r.json())
+      .then((data: UserRecord[]) => {
         setUsersList(data);
-        if (data.length > 0) {
-          setSelectedParentUser(data[0].uid);
-        }
+        if (data.length > 0) setSelectedParentUser(data[0].uid);
       })
-      .catch((err) => console.error("Error loading users:", err));
+      .catch(e => console.error("Error loading users:", e));
   }, []);
 
   const handleVerifyAndRedirect = () => {
     setPinError(null);
     if (!selectedParentUser) return;
-    const correctPin = getParentPin(selectedParentUser);
-    if (parentPinInput === correctPin) {
-      window.location.href = `/parent?uid=${selectedParentUser}&pin=${parentPinInput}`;
-    } else {
-      setPinError("Incorrect Parent Access PIN. Ask your teen for their dashboard PIN.");
-    }
+    setPinLoading(true);
+    setTimeout(() => {
+      const correctPin = getParentPin(selectedParentUser);
+      if (parentPinInput === correctPin) {
+        window.location.href = `/parent?uid=${selectedParentUser}&pin=${parentPinInput}`;
+      } else {
+        setPinError("Incorrect PIN. Ask your teen for their dashboard PIN.");
+        setPinLoading(false);
+      }
+    }, 400);
   };
 
   return (
-    <main className="container" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "2rem 0" }}>
-      <div style={{ textAlign: "center", marginBottom: "3rem" }}>
-        <div style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 1rem", borderRadius: "100px", background: "rgba(99, 102, 241, 0.1)", border: "1px solid rgba(99, 102, 241, 0.2)", color: "var(--color-indigo)", fontSize: "0.85rem", fontWeight: "600", marginBottom: "1rem" }}>
-          <Shield size={14} />
-          YouthPay Financial Intelligence Engine
+    <main style={{ minHeight: "100vh", display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
+
+      {/* Ambient orbs */}
+      <div className="orb orb-violet" style={{ width: 600, height: 600, top: -200, left: -150, opacity: 0.35 }} />
+      <div className="orb orb-indigo" style={{ width: 400, height: 400, top: "40%", right: -100, opacity: 0.25 }} />
+
+      {/* ── Nav ── */}
+      <nav style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "1rem 2.5rem",
+        borderBottom: "1px solid var(--border-light)",
+        background: "rgba(var(--bg-base), 0.7)",
+        backdropFilter: "blur(20px)",
+        position: "sticky", top: 0, zIndex: 50,
+      }} className="app-header-nav">
+        <div className="brand">
+          <div className="brand-logo animate-glow">Y</div>
+          <div>
+            <div className="brand-name">YouthPay</div>
+            <div className="brand-sub">Financial Intelligence</div>
+          </div>
         </div>
-        <h1 style={{ fontSize: "3rem", fontWeight: "800", letterSpacing: "-0.025em", marginBottom: "1rem" }}>
-          Your teen's financial life, <br/>
-          <span style={{ background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            finally visible.
-          </span>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <span className="badge badge-info">🇵🇰 Pakistan</span>
+          <ThemeToggle />
+        </div>
+      </nav>
+
+      {/* ── Hero ── */}
+      <section style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "5rem 2rem 3rem",
+        textAlign: "center",
+        position: "relative",
+      }}>
+        {/* pill badge */}
+        <div style={{
+          display: "inline-flex", alignItems: "center", gap: "0.5rem",
+          padding: "0.4rem 1.1rem", borderRadius: 999,
+          background: "rgba(124,111,255,0.08)",
+          border: "1px solid rgba(124,111,255,0.2)",
+          color: "var(--brand-2)", fontSize: "0.8rem", fontWeight: 600,
+          marginBottom: "2rem",
+          animation: "fadeUp 0.5s ease both",
+        }}>
+          <Shield size={13} />
+          Pocket Money, Made Transparent
+        </div>
+
+        <h1 style={{
+          fontSize: "clamp(2.6rem, 6vw, 5rem)",
+          fontWeight: 800,
+          letterSpacing: "-0.04em",
+          lineHeight: 1.05,
+          marginBottom: "1.5rem",
+          animation: "fadeUp 0.5s 0.08s ease both",
+        }}>
+          Your teen's spending,<br />
+          <span className="text-gradient">crystal clear.</span>
         </h1>
-        <p style={{ color: "var(--text-secondary)", fontSize: "1.1rem", maxWidth: "600px", margin: "0 auto" }}>
-          Automatically ingest transaction notifications from Gmail, parse them into structured metrics, and view real-time pocket money intelligence.
+
+        <p style={{
+          fontSize: "1.15rem",
+          color: "var(--text-secondary)",
+          maxWidth: 540,
+          lineHeight: 1.6,
+          marginBottom: "2rem",
+          animation: "fadeUp 0.5s 0.15s ease both",
+        }}>
+          Connect Gmail once. YouthPay automatically parses Pakistani bank transaction emails into live charts, categories, and parent-readable reports.
         </p>
 
+        {/* Feature pills */}
+        <div style={{
+          display: "flex", flexWrap: "wrap", gap: "0.6rem",
+          justifyContent: "center", marginBottom: "3.5rem",
+          animation: "fadeUp 0.5s 0.22s ease both",
+        }}>
+          {FEATURES.map(f => (
+            <div key={f.label} style={{
+              display: "flex", alignItems: "center", gap: "0.45rem",
+              padding: "0.4rem 0.9rem", borderRadius: 999,
+              background: "var(--glass-sm)", border: "1px solid var(--border-light)",
+              fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 500,
+            }}>
+              <f.icon size={13} color="var(--brand-2)" />
+              {f.label}
+            </div>
+          ))}
+        </div>
+
         {errorMsg && (
-          <div className="badge badge-danger" style={{ 
-            display: "flex", 
-            alignItems: "center", 
-            gap: "0.75rem", 
-            padding: "1rem", 
-            borderRadius: "12px",
-            textTransform: "none",
-            letterSpacing: "normal",
-            fontSize: "0.85rem",
-            marginTop: "2rem",
-            maxWidth: "600px",
-            margin: "2rem auto 0 auto"
+          <div style={{
+            display: "flex", alignItems: "center", gap: "0.6rem",
+            padding: "0.875rem 1.25rem", borderRadius: "var(--radius-md)",
+            background: "rgba(251,113,133,0.06)", border: "1px solid rgba(251,113,133,0.15)",
+            color: "var(--color-rose)", fontSize: "0.85rem",
+            maxWidth: 560, width: "100%", marginBottom: "2rem",
           }}>
-            <AlertTriangle size={18} style={{ flexShrink: 0 }} />
+            <AlertTriangle size={16} style={{ flexShrink: 0 }} />
             <span>{errorMsg}</span>
           </div>
         )}
-      </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "2rem", maxWidth: "900px", margin: "0 auto", width: "100%" }}>
-        {/* Teen Portal */}
-        <div className="glass-card" style={{ padding: "2.5rem", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ width: "48px", height: "48px", background: "rgba(99, 102, 241, 0.1)", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.5rem", color: "var(--color-indigo)" }}>
-              <Wallet size={24} />
+        {/* ── Portal Cards ── */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
+          gap: "1.5rem",
+          width: "100%", maxWidth: 820,
+          animation: "fadeUp 0.5s 0.3s ease both",
+        }}>
+
+          {/* Teen card */}
+          <div className="glass-card hoverable" style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: "1.5rem", padding: "2rem" }}>
+            {/* Icon */}
+            <div style={{
+              width: 48, height: 48, borderRadius: 14,
+              background: "linear-gradient(135deg, rgba(124,111,255,0.2), rgba(79,70,229,0.1))",
+              border: "1px solid rgba(124,111,255,0.2)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <Wallet size={22} color="var(--brand-2)" />
             </div>
-            <h2 style={{ fontSize: "1.5rem", fontWeight: "700", marginBottom: "0.75rem" }}>I'm a Teenager</h2>
-            <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: "1.6", marginBottom: "2rem" }}>
-              Connect your Gmail to sync bank transaction notifications. Get pocket money charts, weekly spending logs, and cheekily smart spending insights.
-            </p>
-          </div>
 
-          <div>
-            <a href="/api/auth/google" className="btn btn-primary" style={{ width: "100%", justifyContent: "center", gap: "0.5rem" }}>
-              <Mail size={18} />
+            <div>
+              <h2 style={{ fontSize: "1.35rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+                I'm a Teenager
+              </h2>
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", lineHeight: 1.65 }}>
+                Link your Gmail and instantly see all your bank transaction data — spending charts, weekly logs, categories, and a financial health score.
+              </p>
+            </div>
+
+            <a href="/api/auth/google" className="btn btn-primary btn-lg" style={{ width: "100%", justifyContent: "center" }}>
+              <Mail size={17} />
               Connect Gmail & Login
-              <ArrowRight size={16} />
+              <ArrowRight size={15} />
             </a>
-            <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem", justifyContent: "center" }}>
-              <span className="supported-item">NayaPay</span>
-              <span className="supported-item">Easypaisa</span>
-              <span className="supported-item">ABL</span>
-              <span className="supported-item">Meezan</span>
-              <span className="supported-item">HBL</span>
+
+            <div>
+              <p style={{ fontSize: "0.72rem", color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: "0.6rem" }}>
+                Supported Banks
+              </p>
+              <div className="supported-list" style={{ marginTop: 0 }}>
+                {BANKS.map(b => <span key={b} className="supported-item">{b}</span>)}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Parent Portal */}
-        <div className="glass-card" style={{ padding: "2.5rem", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ width: "48px", height: "48px", background: "rgba(168, 85, 247, 0.1)", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.5rem", color: "#a855f7" }}>
-              <Users size={24} />
+          {/* Parent card */}
+          <div className="glass-card hoverable" style={{ textAlign: "left", display: "flex", flexDirection: "column", gap: "1.5rem", padding: "2rem" }}>
+            <div style={{
+              width: 48, height: 48, borderRadius: 14,
+              background: "linear-gradient(135deg, rgba(192,132,252,0.2), rgba(124,111,255,0.1))",
+              border: "1px solid rgba(192,132,252,0.2)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <Users size={22} color="var(--color-purple)" />
             </div>
-            <h2 style={{ fontSize: "1.5rem", fontWeight: "700", marginBottom: "0.75rem" }}>I'm a Parent</h2>
-            <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", lineHeight: "1.6", marginBottom: "2rem" }}>
-              Monitor your teen's allowance allocations and spending categories. View simple horizontal metrics, security risk alerts, and a plain-language feed of purchases.
-            </p>
-          </div>
 
-          <div>
+            <div>
+              <h2 style={{ fontSize: "1.35rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+                I'm a Parent
+              </h2>
+              <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", lineHeight: 1.65 }}>
+                Monitor your teen's spending categories, risk alerts, and plain-language activity feed. Secured by a 4-digit PIN from your teen's dashboard.
+              </p>
+            </div>
+
             {usersList.length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                  <label style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: "600" }}>SELECT TEENAGER ACCOUNT</label>
-                  <select 
-                    value={selectedParentUser} 
-                    onChange={(e) => setSelectedParentUser(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem 1rem",
-                      borderRadius: "8px",
-                      background: "rgba(255,255,255,0.03)",
-                      border: "1px solid var(--border-light)",
-                      color: "var(--text-primary)",
-                      fontSize: "0.9rem"
-                    }}
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Select Teenager Account</label>
+                  <select
+                    className="form-input"
+                    value={selectedParentUser}
+                    onChange={e => setSelectedParentUser(e.target.value)}
                   >
-                    {usersList.map((user) => (
-                      <option key={user.uid} value={user.uid} style={{ background: "#111" }}>
-                        {user.name} ({user.email})
-                      </option>
+                    {usersList.map(u => (
+                      <option key={u.uid} value={u.uid}>{u.name} ({u.email})</option>
                     ))}
                   </select>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                  <label style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: "600" }}>PARENT ACCESS PIN (4-DIGITS)</label>
-                  <input 
-                    type="password"
-                    maxLength={4}
-                    value={parentPinInput}
-                    onChange={(e) => {
-                      setParentPinInput(e.target.value);
-                      setPinError(null);
-                    }}
-                    placeholder="Enter 4-digit PIN"
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem 1rem",
-                      borderRadius: "8px",
-                      background: "rgba(255,255,255,0.03)",
-                      border: "1px solid var(--border-light)",
-                      color: "var(--text-primary)",
-                      fontSize: "0.9rem"
-                    }}
-                  />
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Parent Access PIN</label>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type={showPin ? "text" : "password"}
+                      maxLength={4}
+                      inputMode="numeric"
+                      value={parentPinInput}
+                      onChange={e => { setParentPinInput(e.target.value); setPinError(null); }}
+                      onKeyDown={e => e.key === "Enter" && handleVerifyAndRedirect()}
+                      placeholder="••••"
+                      className="form-input"
+                      style={{ textAlign: "center", letterSpacing: "0.3em", fontSize: "1.1rem", paddingRight: "2.75rem" }}
+                    />
+                    <button
+                      onClick={() => setShowPin(p => !p)}
+                      style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}
+                    >
+                      <Eye size={15} />
+                    </button>
+                  </div>
+                  {pinError && (
+                    <span style={{ fontSize: "0.78rem", color: "var(--color-rose)", display: "flex", alignItems: "center", gap: "0.35rem", marginTop: "0.25rem" }}>
+                      <AlertTriangle size={12} /> {pinError}
+                    </span>
+                  )}
                 </div>
-                {pinError && <span style={{ color: "#f43f5e", fontSize: "0.8rem" }}>{pinError}</span>}
-                <button 
-                  onClick={handleVerifyAndRedirect} 
-                  className="btn btn-secondary" 
-                  style={{ width: "100%", justifyContent: "center", gap: "0.5rem", border: "1px solid #a855f7", color: "#d8b4fe" }}
+
+                <button
+                  onClick={handleVerifyAndRedirect}
+                  disabled={pinLoading || !parentPinInput}
+                  className="btn btn-secondary"
+                  style={{ width: "100%", borderColor: "rgba(192,132,252,0.3)", color: "var(--color-purple)", opacity: (!parentPinInput || pinLoading) ? 0.5 : 1 }}
                 >
-                  <TrendingUp size={18} />
+                  {pinLoading ? (
+                    <span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}>⏳</span>
+                  ) : <TrendingUp size={16} />}
                   View Teen Financials
-                  <ArrowRight size={16} />
+                  <ChevronRight size={15} />
                 </button>
               </div>
             ) : (
-              <div style={{ 
-                padding: "1rem", 
-                borderRadius: "8px", 
-                background: "rgba(255,255,255,0.01)", 
-                border: "1px dashed var(--border-light)", 
-                textAlign: "center", 
-                fontSize: "0.85rem",
-                color: "var(--text-muted)" 
+              <div style={{
+                padding: "1.25rem",
+                borderRadius: "var(--radius-md)",
+                background: "var(--glass-sm)",
+                border: "1px dashed var(--border-light)",
+                textAlign: "center",
+                fontSize: "0.82rem",
+                color: "var(--text-muted)",
+                lineHeight: 1.55,
               }}>
-                No teenager accounts connected yet. Please connect a Gmail account first to view parent dashboard.
+                No teenager accounts connected yet.<br />
+                Have your teen link their Gmail first.
               </div>
             )}
           </div>
-        </div>
-      </div>
 
-      <div style={{ textAlign: "center", marginTop: "4rem", fontSize: "0.8rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "center" }}>
-        <span>🔐 Privacy Pledge: We only read transaction alerts matching supported Pakistani banking entities. All other emails are ignored.</span>
-      </div>
+        </div>
+
+        {/* ── Footer note ── */}
+        <p style={{
+          marginTop: "3rem",
+          fontSize: "0.78rem",
+          color: "var(--text-muted)",
+          display: "flex", alignItems: "center", gap: "0.4rem",
+          animation: "fadeUp 0.5s 0.4s ease both",
+        }}>
+          <CheckCircle size={12} color="var(--color-emerald)" />
+          Privacy pledge: We only read transaction emails from supported Pakistani banks. Everything else is ignored.
+        </p>
+      </section>
     </main>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { parseEmail, Transaction } from "@/lib/parser";
 import { categorize } from "@/lib/parser/categorizer";
 import { getParentPin } from "@/lib/security";
+import ThemeToggle from "@/app/components/ThemeToggle";
 import { 
   RefreshCw, LogOut, Terminal, Mail, Play, 
   Copy, Check, AlertCircle, ShieldCheck, 
@@ -250,8 +251,8 @@ export default function Dashboard() {
   if (initialLoading) {
     return (
       <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", alignItems: "center", justifyContent: "center", gap: "1rem" }}>
-        <RefreshCw size={32} className="animate-spin" color="#6366f1" />
-        <h2 style={{ fontSize: "1.2rem", fontWeight: "600", color: "var(--text-primary)" }}>Loading Dashboard...</h2>
+        <RefreshCw size={30} className="animate-spin" color="var(--brand-1, #7c6fff)" />
+        <p style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}>Loading your dashboard…</p>
       </div>
     );
   }
@@ -261,64 +262,49 @@ export default function Dashboard() {
       {/* Header */}
       <header className="app-header">
         <div className="brand">
-          <div className="brand-logo" style={{ background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)" }}>Y</div>
+          <div className="brand-logo animate-glow">Y</div>
           <div>
-            <h1 className="brand-name">YouthPay Teen</h1>
-            <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>Financial Intelligence Engine</span>
+            <div className="brand-name">YouthPay Teen</div>
+            <div className="brand-sub">Financial Dashboard</div>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
           {userEmail && (
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", background: "rgba(255,255,255,0.02)", padding: "0.4rem 0.8rem", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
-                <ShieldCheck size={16} color="var(--color-indigo)" />
-                <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>{userName}</span>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", background: "var(--glass-sm)", padding: "0.35rem 0.75rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)" }}>
+                <ShieldCheck size={14} color="var(--brand-1, #7c6fff)" />
+                <span style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>{userName}</span>
               </div>
               {uid && (
-                <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", background: "rgba(168, 85, 247, 0.05)", padding: "0.4rem 0.8rem", borderRadius: "8px", border: "1px solid rgba(168, 85, 247, 0.2)" }}>
-                  <span style={{ fontSize: "0.75rem", color: "#d8b4fe", fontWeight: "600" }}>🔑 Parent PIN: {getParentPin(uid)}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", background: "rgba(124,111,255,0.06)", padding: "0.35rem 0.75rem", borderRadius: "var(--radius-sm)", border: "1px solid rgba(124,111,255,0.2)" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--brand-2, #a78bfa)", fontWeight: 700 }}>🔑 PIN: {getParentPin(uid)}</span>
                 </div>
               )}
             </div>
           )}
-          <button onClick={handleLogout} className="btn btn-secondary" style={{ padding: "0.5rem 1rem", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "0.35rem" }}>
-            <LogOut size={14} />
+          <button onClick={handleLogout} className="btn btn-ghost btn-sm" style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+            <LogOut size={13} />
             Disconnect
           </button>
+          <ThemeToggle />
         </div>
       </header>
 
       {/* Tabs */}
-      <div style={{ display: "flex", borderBottom: "1px solid var(--border-light)", background: "rgba(255,255,255,0.01)" }}>
-        <button 
+      <div className="tabs-bar">
+        <button
           onClick={() => setActiveView("overview")}
-          className={`btn`} 
-          style={{ 
-            background: "none", 
-            borderRadius: "0", 
-            borderBottom: activeView === "overview" ? "2px solid var(--color-indigo)" : "none",
-            color: activeView === "overview" ? "var(--text-primary)" : "var(--text-muted)",
-            padding: "1rem 2rem",
-            fontWeight: activeView === "overview" ? "700" : "500"
-          }}
+          className={`tab-btn ${activeView === "overview" ? "active" : ""}`}
         >
-          <Mail size={16} />
-          Teen Dashboard
+          <Mail size={15} />
+          Dashboard
         </button>
-        <button 
+        <button
           onClick={() => setActiveView("transactions")}
-          className={`btn`} 
-          style={{ 
-            background: "none", 
-            borderRadius: "0", 
-            borderBottom: activeView === "transactions" ? "2px solid var(--color-indigo)" : "none",
-            color: activeView === "transactions" ? "var(--text-primary)" : "var(--text-muted)",
-            padding: "1rem 2rem",
-            fontWeight: activeView === "transactions" ? "700" : "500"
-          }}
+          className={`tab-btn ${activeView === "transactions" ? "active" : ""}`}
         >
-          <List size={16} />
+          <List size={15} />
           Transactions
         </button>
       </div>
@@ -460,7 +446,7 @@ export default function Dashboard() {
                             width: "120px",
                             height: "120px",
                             borderRadius: "50%",
-                            background: "#090a0f", // Dark dashboard background color
+                            background: "var(--bg-base)",
                             display: "flex",
                             flexDirection: "column",
                             alignItems: "center",
