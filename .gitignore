@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Sensitive / Private Data — DO NOT COMMIT
+emails_collected.json
+firestore_db.json
+*.eml
+bankEmailFormats/
+service-account*.json
+*-service-account.json
+google-credentials*.json
