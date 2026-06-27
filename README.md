@@ -1,6 +1,8 @@
-# ⚡ YouthPay — Financial Intelligence Engine
+# ⚡ BankEmailParser — YouthPay Hackathon
 
-YouthPay is a smart, privacy-centric pocket money intelligence engine designed specifically for Pakistani teenagers and parents. It automatically ingests banking transaction notifications from Gmail, parses them into clean structured data, categorizes them using lightweight rules, and produces live dashboards with pocket money analytics, financial safety alerts, and activity feeds.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+**BankEmailParser** is a smart, privacy-centric financial intelligence engine built for the **YouthPay Hackathon**, designed specifically for Pakistani teenagers and parents. It automatically ingests banking transaction notifications from Gmail, parses them into clean structured data, categorizes them using lightweight rules, and produces live dashboards with pocket money analytics, financial safety alerts, and activity feeds.
 
 ---
 
@@ -20,7 +22,7 @@ YouthPay is a smart, privacy-centric pocket money intelligence engine designed s
 *   **Framework**: Next.js 15 (App Router, React Server/Client Components, API Route Handlers)
 *   **Styling**: Modern CSS Variables with custom design tokens for glassmorphism, depth, and theme-switching transitions.
 *   **Authentication & APIs**: Google OAuth 2.0 & Google Gmail API Client (`googleapis`)
-*   **Database**: Local JSON storage (`firestore_db.json`) simulating a real-time Firestore collection for fast, zero-dependency development.
+*   **Database**: Cloud Firestore integrated using the Firebase Web SDK, with a local JSON storage fallback (`firestore_db.json`) for zero-dependency local development.
 
 ---
 
@@ -120,3 +122,10 @@ Teens start with a score of `100`. Deductions are made dynamically:
 *   **Whitelisting**: Gmail ingestion ignores all emails not originating from verified Pakistani bank domains.
 *   **Secure Cookies**: Session tokens are stored in `httpOnly` cookies, preventing cross-site scripting (XSS) extraction. Local host development automatically disables the `secure` flag to avoid cookie drop on unencrypted HTTP.
 *   **Parent Verification**: The parent access PIN is derived cryptographically from the teen's User ID (`uid`) and can only be shared by the teenager directly from their dashboard.
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](file:///e:/Codes/BankEmailParser/LICENSE) - see the [LICENSE](file:///e:/Codes/BankEmailParser/LICENSE) file for details.
+

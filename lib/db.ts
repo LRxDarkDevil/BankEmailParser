@@ -1,5 +1,9 @@
 import fs from "fs";
 import path from "path";
+// @ts-ignore
+import { initializeApp, getApps, getApp } from "firebase/app";
+// @ts-ignore
+import { getFirestore, collection, doc, getDocs, getDoc, setDoc, query, orderBy } from "firebase/firestore";
 
 // Define the transaction shape
 export interface DbTransaction {
@@ -55,28 +59,28 @@ function writeLocalDb(data: LocalSchema) {
 }
 
 // Firebase Detection
-const isFirebaseEnabled = 
+const isFirebaseEnabled = !!(
   process.env.NEXT_PUBLIC_FIREBASE_API_KEY && 
-  process.env.FIREBASE_PROJECT_ID;
+  (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID)
+);
 
-// Server-side initialization
-let adminFirestore: any = null;
-if (typeof window === "undefined" && isFirebaseEnabled) {
+// Server-side initialization using Web SDK
+let dbInstance: any = null;
+if (isFirebaseEnabled) {
   try {
-    const admin = require("firebase-admin");
-    if (admin.apps.length === 0) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId: process.env.FIREBASE_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          // Handle private key newlines correctly
-          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-        }),
-      });
-    }
-    adminFirestore = admin.firestore();
+    const firebaseConfig = {
+      apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+      authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID,
+      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+      messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+      appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+    };
+
+    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    dbInstance = getFirestore(app);
   } catch (e) {
-    console.error("Firebase Admin initialization failed, falling back to local database:", e);
+    console.error("Firebase SDK initialization failed, falling back to local database:", e);
   }
 }
 
@@ -85,18 +89,17 @@ if (typeof window === "undefined" && isFirebaseEnabled) {
 // ==========================================
 
 export async function getUserTransactions(uid: string): Promise<DbTransaction[]> {
-  if (adminFirestore) {
+  if (dbInstance) {
     try {
-      const snap = await adminFirestore
-        .collection("users")
-        .doc(uid)
-        .collection("transactions")
-        .orderBy("date_time", "desc")
-        .get();
+      const q = query(
+        collection(dbInstance, "users", uid, "transactions"),
+        orderBy("date_time", "desc")
+      );
+      const snap = await getDocs(q);
       
       const txns: DbTransaction[] = [];
-      snap.forEach((doc: any) => {
-        txns.push({ id: doc.id, ...doc.data() } as DbTransaction);
+      snap.forEach((docSnap: any) => {
+        txns.push({ id: docSnap.id, ...docSnap.data() } as DbTransaction);
       });
       return txns;
     } catch (e) {
@@ -115,14 +118,9 @@ export async function getUserTransactions(uid: string): Promise<DbTransaction[]>
 export async function saveTransaction(uid: string, txn: Omit<DbTransaction, "id"> & { id?: string }): Promise<boolean> {
   const txnId = txn.id || Math.random().toString(36).substring(2, 15);
   
-  if (adminFirestore) {
+  if (dbInstance) {
     try {
-      await adminFirestore
-        .collection("users")
-        .doc(uid)
-        .collection("transactions")
-        .doc(txnId)
-        .set(txn);
+      await setDoc(doc(dbInstance, "users", uid, "transactions", txnId), txn);
       return true;
     } catch (e) {
       console.error("Firestore save transaction failed, using local DB:", e);
@@ -142,17 +140,14 @@ export async function saveTransaction(uid: string, txn: Omit<DbTransaction, "id"
 export async function updateUserSyncTime(uid: string, name?: string, email?: string, picture?: string): Promise<void> {
   const now = new Date().toISOString();
   
-  if (adminFirestore) {
+  if (dbInstance) {
     try {
-      await adminFirestore.collection("users").doc(uid).set(
-        {
-          lastSynced: now,
-          ...(name ? { name } : {}),
-          ...(email ? { email } : {}),
-          ...(picture ? { picture } : {}),
-        },
-        { merge: true }
-      );
+      await setDoc(doc(dbInstance, "users", uid), {
+        lastSynced: now,
+        ...(name ? { name } : {}),
+        ...(email ? { email } : {}),
+        ...(picture ? { picture } : {}),
+      }, { merge: true });
       return;
     } catch (e) {
       console.error("Firestore update sync time failed, using local DB:", e);
@@ -182,16 +177,13 @@ export async function updateUserSyncTime(uid: string, name?: string, email?: str
  * Use this for page loads / GET requests so we don't overwrite the actual sync time.
  */
 export async function updateUserProfile(uid: string, name?: string, email?: string, picture?: string): Promise<void> {
-  if (adminFirestore) {
+  if (dbInstance) {
     try {
-      await adminFirestore.collection("users").doc(uid).set(
-        {
-          ...(name ? { name } : {}),
-          ...(email ? { email } : {}),
-          ...(picture ? { picture } : {}),
-        },
-        { merge: true }
-      );
+      await setDoc(doc(dbInstance, "users", uid), {
+        ...(name ? { name } : {}),
+        ...(email ? { email } : {}),
+        ...(picture ? { picture } : {}),
+      }, { merge: true });
       return;
     } catch (e) {
       console.error("Firestore update user profile failed, using local DB:", e);
@@ -217,11 +209,11 @@ export async function updateUserProfile(uid: string, name?: string, email?: stri
 }
 
 export async function getLastSynced(uid: string): Promise<string | null> {
-  if (adminFirestore) {
+  if (dbInstance) {
     try {
-      const doc = await adminFirestore.collection("users").doc(uid).get();
-      if (doc.exists) {
-        return doc.data().lastSynced || null;
+      const snap = await getDoc(doc(dbInstance, "users", uid));
+      if (snap.exists()) {
+        return snap.data().lastSynced || null;
       }
     } catch (e) {
       console.error("Firestore get last sync failed, using local DB:", e);
