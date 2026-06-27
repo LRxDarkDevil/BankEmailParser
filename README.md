@@ -35,11 +35,14 @@
 
 ---
 
-## ⚙️ How to Test OAuth (For Judges)
-> [!IMPORTANT]
-> Because this application uses the restricted `gmail.readonly` scope, Google requires OAuth verification before public release.
-> To test Gmail sync on the live URL, please provide your test email address so we can whitelist it in the **Google Cloud Console > OAuth Consent Screen > Test Users**.
-> If you log in with an un-whitelisted email, Google will display an access block screen.
+## ⚙️ Google Consent Screen Warning (For Reviewers)
+> [!NOTE]
+> Because this application uses the `gmail.readonly` scope and is in testing/development phase, Google displays a **"Google hasn't verified this app"** warning screen.
+> 
+> **How to bypass this warning:**
+> 1. Click the **"Advanced"** link on the bottom left of the Google login screen.
+> 2. Click the link that says **"Go to bank-email-parser.vercel.app (unsafe)"** to proceed with the OAuth flow.
+> 3. Click **"Continue"** to grant read-only permissions to sync bank alerts.
 
 ---
 

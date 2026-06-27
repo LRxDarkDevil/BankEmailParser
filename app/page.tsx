@@ -224,11 +224,16 @@ export default function Home() {
                 <ArrowRight size={15} />
               </a>
             ) : (
-              <a href="/api/auth/google" className="btn btn-primary btn-lg" style={{ width: "100%", justifyContent: "center" }}>
-                <Mail size={17} />
-                Connect Gmail & Login
-                <ArrowRight size={15} />
-              </a>
+              <>
+                <a href="/api/auth/google" className="btn btn-primary btn-lg" style={{ width: "100%", justifyContent: "center" }}>
+                  <Mail size={17} />
+                  Connect Gmail & Login
+                  <ArrowRight size={15} />
+                </a>
+                <p style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: "0.5rem", textAlign: "center", lineHeight: 1.4 }}>
+                  💡 <strong>Google Warning:</strong> Since this is a hackathon project, click <strong>"Advanced"</strong> &rarr; <strong>"Go to bank-email-parser.vercel.app (unsafe)"</strong> to bypass the verification alert.
+                </p>
+              </>
             )}
 
             <div>
