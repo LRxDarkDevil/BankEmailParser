@@ -1,28 +1,83 @@
-# ⚡ BankEmailParser — YouthPay Hackathon
+# ⚡ YouthPay BankEmailParser
+### Pakistani Financial Intelligence Ingestion Engine
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Vercel Deployment](https://img.shields.io/badge/Deployment-Vercel-success?logo=vercel)](https://bank-email-parser.vercel.app/)
 
-**BankEmailParser** is a smart, privacy-centric financial intelligence engine built for the **YouthPay Hackathon**, designed specifically for Pakistani teenagers and parents. It automatically ingests banking transaction notifications from Gmail, parses them into clean structured data, categorizes them using lightweight rules, and produces live dashboards with pocket money analytics, financial safety alerts, and activity feeds.
+**YouthPay BankEmailParser** is a smart, privacy-centric financial intelligence engine built for the **YouthPay Hackathon** (Challenge 1). It is designed specifically for Pakistani teenagers and parents. It automatically ingests transaction notifications from a user's Gmail account, parses them into clean structured data, categorizes spending, and generates interactive dashboards showing spending trends, store affinities, and parental safety logs.
+
+🔗 **Live Production App:** [https://bank-email-parser.vercel.app/](https://bank-email-parser.vercel.app/)  
+💻 **GitHub Repository:** [LRxDarkDevil/BankEmailParser](https://github.com/LRxDarkDevil/BankEmailParser)
 
 ---
 
-## 🚀 Key Features
+## 🚀 Live Demo & Ingestion Walkthrough
 
-*   **Zero Manual Logging**: Integrates securely with Google OAuth to ingest transaction alert emails from Gmail.
-*   **Dual Portal Access**:
-    *   **Teen Dashboard**: Detailed category breakdown (donut chart), weekly spending trends, store affinity insights, and an automated financial wellness health score.
-    *   **Secure Parent Portal**: Access secured by a 4-digit PIN generated from the teen's dashboard, displaying safety flags (late-night transactions, large transaction warnings, budget deficits) and a plain-language feed of purchases.
-*   **Pakistani Fintech Support**: Ingestion rules built specifically for popular Pakistani banks and EMIs (NayaPay, Easypaisa, Meezan Bank, Allied Bank (ABL), HBL, and SadaPay).
-*   **Stunning Dual-Theme UI**: Built with a custom dark-glass and premium light-theme design system, featuring fluid animations, responsive layouts, and a dynamic toggle.
+### 1. Teenager Portal (Sync & Dashboard)
+1. Navigate to the [Live Link](https://bank-email-parser.vercel.app/) and select **"I'm a Teenager"**.
+2. Click **"Connect Gmail & Login"** to authorize read-only access.
+3. Once logged in, click **"Sync Gmail Feed"** to fetch and parse bank alert emails.
+4. View the dashboard:
+   * **Donut Chart:** Visualizes categories (Food, Coffee, Transport, Beauty, Lifestyle, Utilities, Education).
+   * **Pacing Chart:** Displays weekly cash burn over a rolling 4-week window.
+   * **Insights Feed:** Flags repeating merchants (Store Affinity) and highlights coffee/late-night warnings.
+   * **Financial Health Score:** A dynamic gamified score starting at 100 that penalizes late-night transactions and excessive impulse purchases.
+   * **Parent PIN:** Displays a secure, temporary 4-digit PIN (e.g., `🔑 PIN: 4812`) to share with parents.
+
+### 2. Parent Portal (Safety Flags)
+1. Go to the landing page and select **"I'm a Parent"**.
+2. Select your teen's connected email from the dropdown list.
+3. Enter the **4-digit Parent PIN** displayed on the teen's dashboard and click **"View Teen Financials"**.
+4. The Parent Portal displays:
+   * **Cash Flow Check:** Compares tracked credits (allowances) vs debits.
+   * **Safety Flags:** Plain-language alerts for negative cash flow, large single transactions (>Rs. 2,000), and late-night activity (>11:00 PM).
+   * **Purchase Feed:** Replaces complex bank statements with easy-to-read, structured transaction history.
+
+---
+
+## ⚙️ How to Test OAuth (For Judges)
+> [!IMPORTANT]
+> Because this application uses the restricted `gmail.readonly` scope, Google requires OAuth verification before public release.
+> To test Gmail sync on the live URL, please provide your test email address so we can whitelist it in the **Google Cloud Console > OAuth Consent Screen > Test Users**.
+> If you log in with an un-whitelisted email, Google will display an access block screen.
 
 ---
 
 ## 🛠️ Technology Stack
 
-*   **Framework**: Next.js 15 (App Router, React Server/Client Components, API Route Handlers)
-*   **Styling**: Modern CSS Variables with custom design tokens for glassmorphism, depth, and theme-switching transitions.
-*   **Authentication & APIs**: Google OAuth 2.0 & Google Gmail API Client (`googleapis`)
-*   **Database**: Cloud Firestore integrated using the Firebase Web SDK, with a local JSON storage fallback (`firestore_db.json`) for zero-dependency local development.
+* **Frontend & Logic:** Next.js 15 (App Router, Server Components, API Route Handlers)
+* **Styling:** Custom Vanilla CSS variables for dark-glass morphic aesthetic with responsive mobile support.
+* **Authentication:** Google OAuth 2.0 Client (`googleapis` integration)
+* **Database & Persistence:** **Firebase Cloud Firestore** with an automatic **local file system fallback** (`firestore_db.json`) for offline development.
+
+---
+
+## 🧠 Core Engineering Architecture & Logic
+
+### 1. Targeted Regex Ingestion
+To ensure privacy, the Gmail API fetch query restricts the inbox scan to banking domains only:
+```text
+from:(nayapay.com OR telenorbank.pk OR abl.com OR meezanbank.com OR hbl.com) (PKR OR Rs OR spent OR received OR sent OR transfer OR alert)
+```
+Custom parsers split subject lines and bodies to extract amount, merchant, time, payment method, and transaction direction (inflow vs. outflow) for Meezan, NayaPay, Easypaisa, ABL, and HBL formats.
+
+### 2. Compound Deduplication Check
+To prevent duplicating logs across manual syncs, new transactions are compared against historical entries using a compound window:
+* Matches exact **amount**, **merchant name**, and **bank source**.
+* Restricts checks to a **60-second window** to account for transaction and email generation latency.
+
+### 3. Cryptographic PIN Generation
+To protect teenage privacy without the friction of a separate parent login system, the parent portal relies on a deterministically generated 4-digit PIN based on the teenager's unique ID:
+```typescript
+export function getParentPin(uid: string): string {
+  let hash = 0;
+  for (let i = 0; i < uid.length; i++) {
+    hash = uid.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return Math.abs(hash % 9000 + 1000).toString();
+}
+```
+This is verified on every request to block endpoint sniffing.
 
 ---
 
@@ -32,100 +87,59 @@
 ├── app/
 │   ├── api/
 │   │   ├── auth/
-│   │   │   ├── callback/route.ts      # Exchanging OAuth code for tokens
-│   │   │   ├── google/route.ts        # Initiating Google OAuth consent screen
-│   │   │   └── logout/route.ts        # Server-side httpOnly cookie invalidation
-│   │   ├── gmail/sync/route.ts        # Gmail transaction query and parse sync
-│   │   ├── parent/transactions/       # Secure endpoint for parent dashboards
-│   │   └── users/route.ts             # Registered teen account directories
+│   │   │   ├── callback/route.ts      # Exchanges OAuth code for tokens
+│   │   │   ├── google/route.ts        # Initiates Google OAuth consent
+│   │   │   └── logout/route.ts        # Clears cookie sessions
+│   │   ├── gmail/sync/route.ts        # Gmail transaction sync engine
+│   │   ├── parent/transactions/       # Secured parent portal endpoints
+│   │   └── users/route.ts             # Fetches active teenagers list
 │   ├── components/
-│   │   └── ThemeToggle.tsx            # Sun/Moon switch component
+│   │   └── ThemeToggle.tsx            # Light/Dark switch
 │   ├── dashboard/
 │   │   └── page.tsx                   # Teenager Dashboard & charts
 │   ├── parent/
-│   │   └── page.tsx                   # Parent Dashboard with Safety Flags
-│   ├── globals.css                    # Custom responsive design system variables
-│   ├── layout.tsx                     # FOUC theme loader script
-│   └── page.tsx                       # Landing page with portal selects
+│   │   └── page.tsx                   # Parent Dashboard & safety alerts
+│   ├── globals.css                    # Design tokens & responsive styles
+│   ├── layout.tsx                     # FOUC loader script
+│   └── page.tsx                       # Portal select landing page
 ├── lib/
-│   ├── db/index.ts                    # User and transaction records read/write
+│   ├── db.ts                          # Firebase and local DB adapter
 │   ├── parser/
-│   │   ├── index.ts                   # Core text pattern-matching engine
-│   │   ├── categorizer.ts             # Rules-based categorizer (Food, Utilities, etc.)
-│   │   └── deduplicator.ts            # Duplicate transaction check (amount/date/merchant)
-│   └── security/index.ts              # Teen access and parent PIN generation
+│   │   ├── index.ts                   # Ingestion parser wrapper
+│   │   ├── categorizer.ts             # Rules-based categorizer
+│   │   ├── deduplicator.ts            # 60-second deduplication engine
+│   │   └── banks/                     # Bank-specific parsers
+│   └── security.ts                    # Parent PIN generator
 ```
 
 ---
 
-## ⚙️ Getting Started
+## ⚙️ Running Locally
 
 ### 1. Prerequisites
-*   Node.js (v18.x or above)
-*   Google Cloud Console Project with OAuth 2.0 credentials and the **Gmail API** enabled.
+* Node.js (v18.x or above)
+* Google Cloud Project with the **Gmail API** enabled and OAuth credentials configured.
 
 ### 2. Environment Setup
 Create a `.env.local` file in the root directory:
-
 ```env
-GOOGLE_CLIENT_ID="your-google-client-id.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID="your-google-client-id"
 GOOGLE_CLIENT_SECRET="your-google-client-secret"
 NEXT_PUBLIC_REDIRECT_URI="http://localhost:3000/api/auth/callback"
+
+# Optional: Firebase Web SDK config (falls back to local JSON file if missing)
+NEXT_PUBLIC_FIREBASE_API_KEY=""
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=""
 ```
 
-*Ensure your Google Console project has `http://localhost:3000/api/auth/callback` configured as an **Authorized Redirect URI**.*
-
-### 3. Installation
-Install the project dependencies:
+### 3. Installation & Run
 ```bash
 npm install
-```
-
-### 4. Running the Development Server
-Run the local next server:
-```bash
 npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) to view the application.
 
 ---
 
-## 🧠 Core Engineering Logic
-
-### Rule-Based Parser & Ingestion
-The Gmail query targets specific bank alerts:
-`from:(nayapay.com OR telenorbank.pk OR abl.com OR meezanbank.com OR hbl.com) (PKR OR Rs OR spent OR received OR sent OR transfer OR alert)`
-It parses email structures using regexes looking for:
-*   Amount in PKR
-*   Merchant/Beneficiary Name
-*   Transaction Date/Time
-*   Inflow/Outflow direction (credit vs. debit)
-
-### Deduplication Check
-To prevent identical transaction logging on re-runs, a compound match evaluates:
-1. Exact amount
-2. Merchant Name
-3. Source Bank
-4. Time window variance (within 60 seconds)
-
-### Financial Wellness Formula
-Teens start with a score of `100`. Deductions are made dynamically:
-*   `-0.4` points per percentage point of total budget spent on *impulse categories* (Coffee, Lifestyle, Entertainment).
-*   `-5` points for every transaction logged during late-night hours (`11:00 PM - 5:00 AM`).
-*   Clamped to a minimum score of `10` and maximum of `100`.
-
----
-
-## 🔐 Privacy & Security
-
-*   **Read-Only Scope**: Requesting only the `gmail.readonly` permission scope.
-*   **Whitelisting**: Gmail ingestion ignores all emails not originating from verified Pakistani bank domains.
-*   **Secure Cookies**: Session tokens are stored in `httpOnly` cookies, preventing cross-site scripting (XSS) extraction. Local host development automatically disables the `secure` flag to avoid cookie drop on unencrypted HTTP.
-*   **Parent Verification**: The parent access PIN is derived cryptographically from the teen's User ID (`uid`) and can only be shared by the teenager directly from their dashboard.
-
----
-
 ## 📄 License
-
-This project is licensed under the [MIT License](file:///e:/Codes/BankEmailParser/LICENSE) - see the [LICENSE](file:///e:/Codes/BankEmailParser/LICENSE) file for details.
-
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
