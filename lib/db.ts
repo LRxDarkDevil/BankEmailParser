@@ -224,3 +224,22 @@ export async function getLastSynced(uid: string): Promise<string | null> {
   const db = readLocalDb();
   return db.users[uid]?.lastSynced || null;
 }
+
+export async function getAllUsers(): Promise<DbUser[]> {
+  if (dbInstance) {
+    try {
+      const snap = await getDocs(collection(dbInstance, "users"));
+      const users: DbUser[] = [];
+      snap.forEach((docSnap: any) => {
+        users.push({ uid: docSnap.id, ...docSnap.data() } as DbUser);
+      });
+      return users;
+    } catch (e) {
+      console.error("Firestore get all users failed, using local DB:", e);
+    }
+  }
+
+  // Fallback
+  const db = readLocalDb();
+  return Object.values(db.users || {});
+}
