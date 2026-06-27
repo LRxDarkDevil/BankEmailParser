@@ -20,6 +20,7 @@ export interface DbUser {
   email: string;
   createdAt: string;
   lastSynced?: string;
+  picture?: string;
 }
 
 // Local mock database JSON structure
@@ -138,7 +139,7 @@ export async function saveTransaction(uid: string, txn: Omit<DbTransaction, "id"
   return true;
 }
 
-export async function updateUserSyncTime(uid: string, name?: string, email?: string): Promise<void> {
+export async function updateUserSyncTime(uid: string, name?: string, email?: string, picture?: string): Promise<void> {
   const now = new Date().toISOString();
   
   if (adminFirestore) {
@@ -148,6 +149,7 @@ export async function updateUserSyncTime(uid: string, name?: string, email?: str
           lastSynced: now,
           ...(name ? { name } : {}),
           ...(email ? { email } : {}),
+          ...(picture ? { picture } : {}),
         },
         { merge: true }
       );
@@ -165,11 +167,52 @@ export async function updateUserSyncTime(uid: string, name?: string, email?: str
       name: name || "User",
       email: email || "user@example.com",
       createdAt: now,
+      picture: picture || undefined,
     };
   }
   db.users[uid].lastSynced = now;
   if (name) db.users[uid].name = name;
   if (email) db.users[uid].email = email;
+  if (picture) db.users[uid].picture = picture;
+  writeLocalDb(db);
+}
+
+/**
+ * Updates user profile info (name, email, picture) WITHOUT modifying lastSynced.
+ * Use this for page loads / GET requests so we don't overwrite the actual sync time.
+ */
+export async function updateUserProfile(uid: string, name?: string, email?: string, picture?: string): Promise<void> {
+  if (adminFirestore) {
+    try {
+      await adminFirestore.collection("users").doc(uid).set(
+        {
+          ...(name ? { name } : {}),
+          ...(email ? { email } : {}),
+          ...(picture ? { picture } : {}),
+        },
+        { merge: true }
+      );
+      return;
+    } catch (e) {
+      console.error("Firestore update user profile failed, using local DB:", e);
+    }
+  }
+
+  // Fallback — update fields without touching lastSynced
+  const db = readLocalDb();
+  if (!db.users[uid]) {
+    db.users[uid] = {
+      uid,
+      name: name || "User",
+      email: email || "user@example.com",
+      createdAt: new Date().toISOString(),
+      picture: picture || undefined,
+    };
+  } else {
+    if (name) db.users[uid].name = name;
+    if (email) db.users[uid].email = email;
+    if (picture) db.users[uid].picture = picture;
+  }
   writeLocalDb(db);
 }
 

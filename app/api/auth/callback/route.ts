@@ -37,12 +37,16 @@ export async function GET(request: NextRequest) {
     // Redirect to dashboard and save tokens in cookies
     const response = NextResponse.redirect(new URL("/dashboard", request.url));
 
+    const host = request.headers.get("host") || "";
+    const isLocalhost = host.includes("localhost") || host.includes("127.0.0.1");
+    const isSecure = !isLocalhost && process.env.NODE_ENV === "production";
+
     if (tokens.access_token) {
       response.cookies.set("gmail_access_token", tokens.access_token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: isSecure,
         sameSite: "lax",
-        maxAge: tokens.expiry_date ? Math.floor((tokens.expiry_date - Date.now()) / 1000) : 3600,
+        maxAge: 3600, // 1 hour is standard Google access token lifespan
         path: "/",
       });
     }
@@ -50,7 +54,7 @@ export async function GET(request: NextRequest) {
     if (tokens.refresh_token) {
       response.cookies.set("gmail_refresh_token", tokens.refresh_token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: isSecure,
         sameSite: "lax",
         maxAge: 30 * 24 * 60 * 60, // 30 days
         path: "/",

@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     let userName = "Teenager";
     let userEmail = "teen@example.com";
     let lastSynced = "";
+    let userPicture = "";
 
     const LOCAL_DB_PATH = path.join(process.cwd(), "firestore_db.json");
     if (fs.existsSync(LOCAL_DB_PATH)) {
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
         userName = user.name;
         userEmail = user.email;
         lastSynced = user.lastSynced || "";
+        userPicture = user.picture || "";
       }
     }
 
@@ -34,6 +36,7 @@ export async function GET(request: NextRequest) {
       uid,
       name: userName,
       email: userEmail,
+      picture: userPicture,
       lastSynced,
       transactions: transactionsList
     });

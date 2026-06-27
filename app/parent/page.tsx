@@ -97,6 +97,7 @@ function ParentDashboardContent() {
   const [errorMsg, setErrorMsg]             = useState<string | null>(null);
   const [teenName, setTeenName]             = useState("Teenager");
   const [teenEmail, setTeenEmail]           = useState("");
+  const [teenPicture, setTeenPicture]       = useState("");
   const [lastSynced, setLastSynced]         = useState("");
   const [transactions, setTransactions]     = useState<Transaction[]>([]);
   const [usersList, setUsersList]           = useState<UserRecord[]>([]);
@@ -127,6 +128,7 @@ function ParentDashboardContent() {
       .then(data => {
         setTeenName(data.name);
         setTeenEmail(data.email);
+        setTeenPicture(data.picture || "");
         setLastSynced(data.lastSynced || "");
         setTransactions((data.transactions || []).filter((t: Transaction) => (t.amount_pkr || 0) > 0));
       })
@@ -319,13 +321,17 @@ function ParentDashboardContent() {
       }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.5rem" }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: "var(--radius-md)",
-              background: "linear-gradient(135deg, rgba(124,111,255,0.2), rgba(79,70,229,0.1))",
-              border: "1px solid rgba(124,111,255,0.2)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: "1.2rem",
-            }}>👤</div>
+            {teenPicture ? (
+              <img src={teenPicture} alt={teenName} referrerPolicy="no-referrer" style={{ width: 44, height: 44, borderRadius: "var(--radius-md)", objectFit: "cover", border: "1px solid var(--border-light)" }} />
+            ) : (
+              <div style={{
+                width: 44, height: 44, borderRadius: "var(--radius-md)",
+                background: "linear-gradient(135deg, rgba(124,111,255,0.2), rgba(79,70,229,0.1))",
+                border: "1px solid rgba(124,111,255,0.2)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: "1.2rem",
+              }}>👤</div>
+            )}
             <div>
               <h1 style={{ fontSize: "1.75rem", fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
                 {teenName}<span style={{ color: "var(--text-muted)", fontWeight: 400 }}>'s Report</span>

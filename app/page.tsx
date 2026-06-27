@@ -29,6 +29,8 @@ export default function Home() {
   const [pinError, setPinError]             = useState<string | null>(null);
   const [pinLoading, setPinLoading]         = useState(false);
   const [showPin, setShowPin]               = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [teenUserName, setTeenUserName]     = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -45,6 +47,20 @@ export default function Home() {
         if (data.length > 0) setSelectedParentUser(data[0].uid);
       })
       .catch(e => console.error("Error loading users:", e));
+
+    // Check if teenager session exists
+    fetch("/api/gmail/sync")
+      .then(res => {
+        if (res.ok) return res.json();
+        throw new Error("Not logged in");
+      })
+      .then(data => {
+        setIsAuthenticated(true);
+        setTeenUserName(data.name || "Teenager");
+      })
+      .catch(() => {
+        setIsAuthenticated(false);
+      });
   }, []);
 
   const handleVerifyAndRedirect = () => {
@@ -201,11 +217,19 @@ export default function Home() {
               </p>
             </div>
 
-            <a href="/api/auth/google" className="btn btn-primary btn-lg" style={{ width: "100%", justifyContent: "center" }}>
-              <Mail size={17} />
-              Connect Gmail & Login
-              <ArrowRight size={15} />
-            </a>
+            {isAuthenticated ? (
+              <a href="/dashboard" className="btn btn-primary btn-lg" style={{ width: "100%", justifyContent: "center" }}>
+                <Wallet size={17} />
+                Go to Dashboard
+                <ArrowRight size={15} />
+              </a>
+            ) : (
+              <a href="/api/auth/google" className="btn btn-primary btn-lg" style={{ width: "100%", justifyContent: "center" }}>
+                <Mail size={17} />
+                Connect Gmail & Login
+                <ArrowRight size={15} />
+              </a>
+            )}
 
             <div>
               <p style={{ fontSize: "0.72rem", color: "var(--text-muted)", fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: "0.6rem" }}>

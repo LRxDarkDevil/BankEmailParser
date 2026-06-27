@@ -19,11 +19,18 @@ interface SyncResponse {
   uid: string;
   transactions: Transaction[];
   newSyncedCount?: number;
+  picture?: string;
+  messagesTotal?: number;
+  isStudent?: boolean;
+  needsSync?: boolean;
 }
 
 export default function Dashboard() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>("YouthPay Teen");
+  const [userPicture, setUserPicture] = useState<string | null>(null);
+  const [messagesTotal, setMessagesTotal] = useState<number | null>(null);
+  const [isStudent, setIsStudent]         = useState<boolean>(false);
   const [uid, setUid] = useState<string>("");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,8 +63,18 @@ export default function Dashboard() {
       const data: SyncResponse = await res.json();
       setUserEmail(data.email);
       setUserName(data.name);
+      setUserPicture(data.picture || null);
+      setMessagesTotal(data.messagesTotal ?? null);
+      setIsStudent(!!data.isStudent);
       setUid(data.uid);
       setTransactions((data.transactions || []).filter((t: Transaction) => (t.amount_pkr || 0) > 0));
+      // Auto-sync: if server reports no stored transactions for this user, kick off a full sync
+      if (data.needsSync) {
+        setInitialLoading(false);
+        setLoading(false);
+        triggerGmailSync();
+        return;
+      }
     } catch (err: any) {
       console.error(err);
       setErrorMsg(err.message || "An error occurred while loading transaction logs.");
@@ -83,6 +100,11 @@ export default function Dashboard() {
       }
       const data: SyncResponse = await res.json();
       setUid(data.uid);
+      setUserName(data.name);
+      setUserPicture(data.picture || null);
+      setUserEmail(data.email);
+      setMessagesTotal(data.messagesTotal ?? null);
+      setIsStudent(!!data.isStudent);
       setTransactions((data.transactions || []).filter((t: Transaction) => (t.amount_pkr || 0) > 0));
       setSyncCount(data.newSyncedCount ?? 0);
     } catch (err: any) {
@@ -94,8 +116,11 @@ export default function Dashboard() {
   };
 
   const handleLogout = async () => {
-    document.cookie = "gmail_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
-    document.cookie = "gmail_refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT";
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
     window.location.href = "/";
   };
 
@@ -273,7 +298,11 @@ export default function Dashboard() {
           {userEmail && (
             <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", background: "var(--glass-sm)", padding: "0.35rem 0.75rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-light)" }}>
-                <ShieldCheck size={14} color="var(--brand-1, #7c6fff)" />
+                {userPicture ? (
+                  <img src={userPicture} alt={userName} referrerPolicy="no-referrer" style={{ width: 18, height: 18, borderRadius: "50%", objectFit: "cover" }} />
+                ) : (
+                  <ShieldCheck size={14} color="var(--brand-1, #7c6fff)" />
+                )}
                 <span style={{ fontSize: "0.82rem", color: "var(--text-secondary)" }}>{userName}</span>
               </div>
               {uid && (
@@ -316,8 +345,22 @@ export default function Dashboard() {
           {/* Top Actions & Sync Notification */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
             <div>
-              <h2 style={{ fontSize: "1.5rem", fontWeight: "800" }}>Hey {userName.split(" ")[0]} 👋</h2>
-              <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>Here's your pocket money analysis for this month.</p>
+              <h2 style={{ fontSize: "1.5rem", fontWeight: "800", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                Hey {userName.split(" ")[0]} 👋
+                {isStudent && (
+                  <span className="badge badge-success" style={{ fontSize: "0.68rem", textTransform: "none", display: "inline-flex", alignItems: "center", gap: "0.25rem", background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.2)", verticalAlign: "middle" }}>
+                    🎓 Student Account
+                  </span>
+                )}
+              </h2>
+              <p style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
+                Here's your pocket money analysis for this month. 
+                {messagesTotal !== null && (
+                  <span style={{ color: "var(--brand-2, #a78bfa)", marginLeft: "0.4rem", fontWeight: "500" }}>
+                    (Scanning {messagesTotal.toLocaleString()} emails)
+                  </span>
+                )}
+              </p>
             </div>
             <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
               {syncCount !== null && (

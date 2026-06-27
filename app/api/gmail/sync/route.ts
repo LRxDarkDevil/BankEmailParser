@@ -3,7 +3,7 @@ import { google } from "googleapis";
 import fs from "fs";
 import path from "path";
 import { parseEmail } from "@/lib/parser";
-import { getUserTransactions, saveTransaction, updateUserSyncTime } from "@/lib/db";
+import { getUserTransactions, saveTransaction, updateUserSyncTime, updateUserProfile, getLastSynced } from "@/lib/db";
 import { isDuplicate } from "@/lib/parser/deduplicator";
 
 // Helper to decode base64url
@@ -58,6 +58,10 @@ export async function POST(request: NextRequest) {
     redirect_uri
   );
 
+  const host = request.headers.get("host") || "";
+  const isLocalhost = host.includes("localhost") || host.includes("127.0.0.1");
+  const isSecure = !isLocalhost && process.env.NODE_ENV === "production";
+
   let response: NextResponse | null = null;
   let activeAccessToken = accessCookie;
 
@@ -72,9 +76,9 @@ export async function POST(request: NextRequest) {
         response = NextResponse.next();
         response.cookies.set("gmail_access_token", activeAccessToken, {
           httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
+          secure: isSecure,
           sameSite: "lax",
-          maxAge: credentials.expiry_date ? Math.floor((credentials.expiry_date - Date.now()) / 1000) : 3600,
+          maxAge: 3600,
           path: "/",
         });
       }
@@ -97,14 +101,27 @@ export async function POST(request: NextRequest) {
     // Fetch user profile email to derive unique User ID
     let userEmail = "anonymous@gmail.com";
     let userName = "YouthPay User";
+    let userPicture = "";
     try {
       const userInfo = await oauth2.userinfo.get();
       userEmail = userInfo.data.email || "anonymous@gmail.com";
       userName = userInfo.data.name || "YouthPay User";
+      userPicture = userInfo.data.picture || "";
     } catch (e) {
       console.error("Error fetching user info:", e);
     }
     const uid = userEmail.replace(/[^a-zA-Z0-9]/g, "_");
+
+    // Fetch Gmail profile metadata
+    let messagesTotal = 0;
+    try {
+      const gmailProfile = await gmail.users.getProfile({ userId: "me" });
+      messagesTotal = gmailProfile.data.messagesTotal || 0;
+    } catch (e) {
+      console.error("Error fetching Gmail profile info:", e);
+    }
+
+    const isStudent = userEmail.endsWith(".edu") || userEmail.endsWith(".edu.pk") || userEmail.includes("student") || userEmail.includes("giki") || userEmail.includes("lums") || userEmail.includes("nust");
 
     // Fetch existing transactions from DB to run deduplication
     const existingTransactions = await getUserTransactions(uid);
@@ -178,7 +195,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Update user record with last sync time
-    await updateUserSyncTime(uid, userName, userEmail);
+    await updateUserSyncTime(uid, userName, userEmail, userPicture);
 
     // Fetch the final list of transactions to return to the dashboard
     const finalTransactionsList = await getUserTransactions(uid);
@@ -186,7 +203,10 @@ export async function POST(request: NextRequest) {
     const payload = {
       email: userEmail,
       name: userName,
+      picture: userPicture,
       uid: uid,
+      messagesTotal: messagesTotal,
+      isStudent: isStudent,
       transactions: finalTransactionsList,
       newSyncedCount: newTxnsSynced.length
     };
@@ -199,7 +219,7 @@ export async function POST(request: NextRequest) {
       // Copy cookies over
       finalRes.cookies.set("gmail_access_token", activeAccessToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: isSecure,
         sameSite: "lax",
         maxAge: 3600,
         path: "/",
@@ -232,6 +252,10 @@ export async function GET(request: NextRequest) {
     redirect_uri
   );
 
+  const host = request.headers.get("host") || "";
+  const isLocalhost = host.includes("localhost") || host.includes("127.0.0.1");
+  const isSecure = !isLocalhost && process.env.NODE_ENV === "production";
+
   let response: NextResponse | null = null;
   let activeAccessToken = accessCookie;
 
@@ -254,33 +278,63 @@ export async function GET(request: NextRequest) {
 
   oauth2Client.setCredentials({ access_token: activeAccessToken });
 
-  try {
-    const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
-    let userEmail = "anonymous@gmail.com";
-    let userName = "YouthPay User";
     try {
-      const userInfo = await oauth2.userinfo.get();
-      userEmail = userInfo.data.email || "anonymous@gmail.com";
-      userName = userInfo.data.name || "YouthPay User";
-    } catch (e) {
-      console.error("Error fetching user info in GET:", e);
-    }
-    
-    const uid = userEmail.replace(/[^a-zA-Z0-9]/g, "_");
+      const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
+      let userEmail = "anonymous@gmail.com";
+      let userName = "YouthPay User";
+      let userPicture = "";
+      try {
+        const userInfo = await oauth2.userinfo.get();
+        userEmail = userInfo.data.email || "";
+        userName = userInfo.data.name || "YouthPay User";
+        userPicture = userInfo.data.picture || "";
+      } catch (e) {
+        console.error("Error fetching user info in GET:", e);
+      }
+
+      // If we couldn't resolve the email (token expired/invalid), force re-auth
+      if (!userEmail) {
+        return NextResponse.json({ error: "Unauthorized: Could not resolve identity" }, { status: 401 });
+      }
+      
+      const uid = userEmail.replace(/[^a-zA-Z0-9]/g, "_");
+      
+      const gmail = google.gmail({ version: "v1", auth: oauth2Client });
+      let messagesTotal = 0;
+      try {
+        const gmailProfile = await gmail.users.getProfile({ userId: "me" });
+        messagesTotal = gmailProfile.data.messagesTotal || 0;
+      } catch (e) {
+        console.error("Error fetching Gmail profile info in GET:", e);
+      }
+
+      const isStudent = userEmail.endsWith(".edu") || userEmail.endsWith(".edu.pk") || userEmail.includes("student") || userEmail.includes("giki") || userEmail.includes("lums") || userEmail.includes("nust");
+      
+      // Update profile info (name/picture) but preserve lastSynced — only POST sync updates that
+      await updateUserProfile(uid, userName, userEmail, userPicture);
     const transactionsList = await getUserTransactions(uid);
+    
+    // Only auto-sync if user has NEVER synced before (first-time user)
+    // Checking lastSynced avoids an infinite loop for users with 0 bank emails
+    const lastSynced = await getLastSynced(uid);
+    const needsSync = !lastSynced && transactionsList.length === 0;
 
     const payload = {
       email: userEmail,
       name: userName,
+      picture: userPicture,
       uid: uid,
+      messagesTotal: messagesTotal,
+      isStudent: isStudent,
       transactions: transactionsList,
+      needsSync,
     };
 
     if (response) {
       const finalRes = NextResponse.json(payload);
       finalRes.cookies.set("gmail_access_token", activeAccessToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: isSecure,
         sameSite: "lax",
         maxAge: 3600,
         path: "/",
