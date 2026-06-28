@@ -25,6 +25,8 @@ export interface DbUser {
   createdAt: string;
   lastSynced?: string;
   picture?: string;
+  aiOverview?: string;
+  aiOverviewTime?: string;
 }
 
 // Local mock database JSON structure
@@ -242,4 +244,57 @@ export async function getAllUsers(): Promise<DbUser[]> {
   // Fallback
   const db = readLocalDb();
   return Object.values(db.users || {});
+}
+
+export async function getCachedAiOverview(uid: string): Promise<{ overview: string; timestamp: string } | null> {
+  if (dbInstance) {
+    try {
+      const snap = await getDoc(doc(dbInstance, "users", uid));
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.aiOverview && data.aiOverviewTime) {
+          return { overview: data.aiOverview, timestamp: data.aiOverviewTime };
+        }
+      }
+    } catch (e) {
+      console.error("Firestore get cached AI overview failed, using local DB:", e);
+    }
+  }
+
+  // Fallback
+  const db = readLocalDb();
+  const user = db.users[uid];
+  if (user && user.aiOverview && user.aiOverviewTime) {
+    return { overview: user.aiOverview, timestamp: user.aiOverviewTime };
+  }
+  return null;
+}
+
+export async function saveCachedAiOverview(uid: string, overview: string): Promise<void> {
+  const now = new Date().toISOString();
+  if (dbInstance) {
+    try {
+      await setDoc(doc(dbInstance, "users", uid), {
+        aiOverview: overview,
+        aiOverviewTime: now,
+      }, { merge: true });
+      return;
+    } catch (e) {
+      console.error("Firestore save cached AI overview failed, using local DB:", e);
+    }
+  }
+
+  // Fallback
+  const db = readLocalDb();
+  if (!db.users[uid]) {
+    db.users[uid] = {
+      uid,
+      name: "User",
+      email: "user@example.com",
+      createdAt: now,
+    };
+  }
+  db.users[uid].aiOverview = overview;
+  db.users[uid].aiOverviewTime = now;
+  writeLocalDb(db);
 }

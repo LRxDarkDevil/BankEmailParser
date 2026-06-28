@@ -7,7 +7,7 @@ import {
   TrendingDown, Calendar, ArrowRight, UserCheck,
   Clock, AlertTriangle, AlertCircle, RefreshCw,
   Lock, ChevronDown, Eye, EyeOff, CheckCircle2,
-  Flame, Zap, BarChart3, Activity
+  Flame, Zap, BarChart3, Activity, Sparkles, Bot
 } from "lucide-react";
 import { Transaction } from "@/lib/parser";
 import { categorize } from "@/lib/parser/categorizer";
@@ -106,6 +106,135 @@ function ParentDashboardContent() {
   const [enteredPin, setEnteredPin]         = useState("");
   const [pinError, setPinError]             = useState<string | null>(null);
   const [showPin, setShowPin]               = useState(false);
+
+  // AI Overview State
+  const [aiOverview, setAiOverview] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState<boolean>(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const fetchAiOverview = async (forceRefresh = false) => {
+    if (!selectedUser || !isPinVerified) return;
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const res = await fetch(`/api/ai/overview?uid=${selectedUser}&role=parent${forceRefresh ? "&force=true" : ""}`);
+      if (!res.ok) {
+        throw new Error("Failed to load AI overview");
+      }
+      const data = await res.json();
+      setAiOverview(data.overview);
+    } catch (err: any) {
+      console.error("Parent AI Overview fetch error:", err);
+      setAiError(err.message || "Could not generate AI insights.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isPinVerified && selectedUser) {
+      fetchAiOverview();
+    } else {
+      setAiOverview(null);
+    }
+  }, [selectedUser, isPinVerified]);
+
+  // Safe markdown parser
+  // Safe markdown parser
+  const renderMarkdown = (text: string) => {
+    if (!text) return null;
+    const lines = text.split("\n");
+    return lines.map((line, idx) => {
+      let cleanLine = line.trim();
+      let isBullet = false;
+
+      // Keep stripping bullet markers like "- ", "* ", "+ " from the start
+      while (cleanLine.startsWith("- ") || cleanLine.startsWith("* ") || cleanLine.startsWith("+ ")) {
+        isBullet = true;
+        cleanLine = cleanLine.substring(2).trim();
+      }
+
+      // If it still starts with a bullet symbol but no space (e.g. just "-" or "*"), strip it
+      if (cleanLine === "-" || cleanLine === "*" || cleanLine === "+") {
+        return <div key={idx} style={{ height: "0.4rem" }} />;
+      }
+
+      // Clean unmatched asterisks
+      cleanLine = cleanMismatchedMarkdown(cleanLine);
+      
+      if (cleanLine.startsWith("###")) {
+        return (
+          <h4 key={idx} style={{ fontSize: "0.95rem", fontWeight: "700", margin: "1rem 0 0.5rem 0", color: "var(--text-primary)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            {parseBold(cleanLine.replace("###", "").trim())}
+          </h4>
+        );
+      }
+      
+      if (cleanLine.startsWith("##")) {
+        return (
+          <h3 key={idx} style={{ fontSize: "1.1rem", fontWeight: "800", margin: "1.2rem 0 0.6rem 0", color: "var(--text-primary)" }}>
+            {parseBold(cleanLine.replace("##", "").trim())}
+          </h3>
+        );
+      }
+      
+      if (isBullet) {
+        return (
+          <li key={idx} style={{ marginLeft: "1.25rem", marginBottom: "0.45rem", listStyleType: "disc", color: "var(--text-secondary)", lineHeight: "1.5" }}>
+            {parseBold(cleanLine)}
+          </li>
+        );
+      }
+      
+      if (!cleanLine) {
+        return <div key={idx} style={{ height: "0.4rem" }} />;
+      }
+      
+      return (
+        <p key={idx} style={{ marginBottom: "0.5rem", color: "var(--text-secondary)", lineHeight: "1.5", fontSize: "0.875rem" }}>
+          {parseBold(cleanLine)}
+        </p>
+      );
+    });
+  };
+
+  const cleanMismatchedMarkdown = (text: string) => {
+    let cleaned = text.trim();
+    
+    // Count occurrences of "**"
+    const doubleAsteriskCount = (cleaned.match(/\*\*/g) || []).length;
+    if (doubleAsteriskCount % 2 === 1) {
+      if (cleaned.endsWith("**")) {
+        cleaned = cleaned.slice(0, -2).trim();
+      } else if (cleaned.startsWith("**")) {
+        cleaned = cleaned.slice(2).trim();
+      }
+    }
+    
+    // Count occurrences of "*" (excluding "**")
+    const singleAsteriskCount = (cleaned.replace(/\*\*/g, "").match(/\*/g) || []).length;
+    if (singleAsteriskCount % 2 === 1) {
+      if (cleaned.endsWith("*") && !cleaned.endsWith("**")) {
+        cleaned = cleaned.slice(0, -1).trim();
+      } else if (cleaned.startsWith("*") && !cleaned.startsWith("**")) {
+        cleaned = cleaned.slice(1).trim();
+      }
+    }
+    
+    return cleaned;
+  };
+
+  const parseBold = (text: string) => {
+    const parts = text.split(/\*\frac{.*?}\*\*/g);
+    // Note: Typo fixed here to match exactly double asterisks
+    const partsReal = text.split(/\*\*(.*?)\*\*/g);
+    return partsReal.map((part, i) => {
+      if (i % 2 === 1) {
+        return <strong key={i} style={{ color: "var(--text-primary)", fontWeight: "700" }}>{part}</strong>;
+      }
+      return part;
+    });
+  };
 
   // load user list
   useEffect(() => {
@@ -366,6 +495,99 @@ function ParentDashboardContent() {
         <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", lineHeight: 1.5 }}>
           <strong style={{ color: "var(--brand-2)" }}>Note:</strong> Shows only transactions parsed from Gmail alerts. Transfers without email notifications may not appear.
         </p>
+      </div>
+
+      {/* AI Overview Section */}
+      <div className="glass-card animate-fade-up" style={{ 
+        padding: "1.75rem", 
+        display: "flex", 
+        flexDirection: "column", 
+        gap: "1.2rem",
+        position: "relative",
+        overflow: "hidden",
+        border: "1px solid rgba(124, 111, 255, 0.25)",
+        boxShadow: "0 8px 32px rgba(124, 111, 255, 0.05)",
+        borderRadius: "var(--radius-lg, 12px)"
+      }}>
+        <style>{`
+          @keyframes aiPulse {
+            0% { opacity: 0.3; }
+            50% { opacity: 0.7; }
+            100% { opacity: 0.3; }
+          }
+          .ai-pulse-bar {
+            animation: aiPulse 1.5s infinite ease-in-out;
+          }
+        `}</style>
+        
+        {/* Ambient Background Glow */}
+        <div style={{
+          position: "absolute",
+          top: "-50px",
+          right: "-50px",
+          width: "150px",
+          height: "150px",
+          borderRadius: "50%",
+          background: "radial-gradient(circle, rgba(124, 111, 255, 0.15) 0%, transparent 70%)",
+          pointerEvents: "none"
+        }} />
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 32,
+              height: 32,
+              borderRadius: "8px",
+              background: "linear-gradient(135deg, rgba(124, 111, 255, 0.2), rgba(168, 85, 247, 0.2))",
+              border: "1px solid rgba(124, 111, 255, 0.3)"
+            }}>
+              <Sparkles size={16} color="var(--brand-2, #a78bfa)" />
+            </div>
+            <div>
+              <h3 style={{ fontSize: "1rem", fontWeight: "800", background: "linear-gradient(90deg, var(--text-primary, #fff), #a78bfa)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", margin: 0 }}>
+                AI Financial Overview (Parent View)
+              </h3>
+              <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", margin: 0 }}>
+                Powered by Mistral AI • Teen habits & discussion pointers
+              </p>
+            </div>
+          </div>
+
+          {aiOverview && !aiLoading && (
+            <button
+              onClick={() => fetchAiOverview(true)}
+              disabled={aiLoading}
+              className="btn btn-ghost btn-sm"
+              style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.8rem", color: "var(--brand-2, #a78bfa)", padding: "0.25rem 0.5rem", height: "auto" }}
+            >
+              <RefreshCw size={12} className={aiLoading ? "animate-spin" : ""} />
+              Regenerate
+            </button>
+          )}
+        </div>
+
+        <div style={{ borderTop: "1px solid var(--border-faint, rgba(255,255,255,0.08))", paddingTop: "1rem" }}>
+          {aiLoading ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem", padding: "0.5rem 0" }}>
+              <div className="ai-pulse-bar" style={{ height: "1rem", width: "90%", borderRadius: "4px", background: "rgba(255,255,255,0.06)" }} />
+              <div className="ai-pulse-bar" style={{ height: "1rem", width: "95%", borderRadius: "4px", background: "rgba(255,255,255,0.06)" }} />
+              <div className="ai-pulse-bar" style={{ height: "1rem", width: "60%", borderRadius: "4px", background: "rgba(255,255,255,0.06)" }} />
+            </div>
+          ) : aiError ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--color-rose, #fb7185)" }}>
+              <AlertCircle size={16} />
+              <span style={{ fontSize: "0.85rem" }}>{aiError}</span>
+              <button onClick={() => fetchAiOverview()} className="btn btn-ghost btn-sm" style={{ padding: "0.2rem 0.5rem", fontSize: "0.8rem", color: "var(--brand-2)" }}>Try again</button>
+            </div>
+          ) : (
+            <div className="ai-content-box" style={{ fontSize: "0.875rem", lineHeight: "1.6" }}>
+              {renderMarkdown(aiOverview || "")}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Stat cards ── */}

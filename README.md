@@ -18,6 +18,7 @@
 2. Click **"Connect Gmail & Login"** to authorize read-only access.
 3. Once logged in, click **"Sync Gmail Feed"** to fetch and parse bank alert emails.
 4. View the dashboard:
+   * **AI Financial Overview (New!):** Powered by Mistral AI, it analyzes spending data and presents a cool, encouraging financial overview with custom wealth-building recommendations.
    * **Donut Chart:** Visualizes categories (Food, Coffee, Transport, Beauty, Lifestyle, Utilities, Education).
    * **Pacing Chart:** Displays weekly cash burn over a rolling 4-week window.
    * **Insights Feed:** Flags repeating merchants (Store Affinity) and highlights coffee/late-night warnings.
@@ -29,6 +30,7 @@
 2. Select your teen's connected email from the dropdown list.
 3. Enter the **4-digit Parent PIN** displayed on the teen's dashboard and click **"View Teen Financials"**.
 4. The Parent Portal displays:
+   * **AI Overview (Parent View) (New!):** Focuses on explaining the teen's habits in plain English, highlighting areas of positive growth, concerns, and presenting custom parent-teen discussion prompts.
    * **Cash Flow Check:** Compares tracked credits (allowances) vs debits.
    * **Safety Flags:** Plain-language alerts for negative cash flow, large single transactions (>Rs. 2,000), and late-night activity (>11:00 PM).
    * **Purchase Feed:** Replaces complex bank statements with easy-to-read, structured transaction history.
@@ -82,6 +84,13 @@ export function getParentPin(uid: string): string {
 ```
 This is verified on every request to block endpoint sniffing.
 
+### 4. Smart AI Caching Layer (Mistral AI Integration)
+To minimize API key costs and maximize performance, the AI overview is stored in the database cache:
+* When Gmail feeds are successfully synchronized, the AI cache is marked as stale.
+* Upon dashboard load, if the database has a cached AI overview generated after the last sync timestamp, it is loaded instantly.
+* If a new sync occurred or a user requests manual regeneration, the endpoint requests a new completion from Mistral AI, updates the user's database document, and returns the response.
+* If the `MISTRAL_API_KEY` is not provided, the system falls back to a descriptive **Demo Mode** explaining its features and integration steps.
+
 ---
 
 ## 📁 Project Structure
@@ -93,6 +102,7 @@ This is verified on every request to block endpoint sniffing.
 │   │   │   ├── callback/route.ts      # Exchanges OAuth code for tokens
 │   │   │   ├── google/route.ts        # Initiates Google OAuth consent
 │   │   │   └── logout/route.ts        # Clears cookie sessions
+│   │   ├── ai/overview/route.ts       # Mistral AI completion router
 │   │   ├── gmail/sync/route.ts        # Gmail transaction sync engine
 │   │   ├── parent/transactions/       # Secured parent portal endpoints
 │   │   └── users/route.ts             # Fetches active teenagers list
@@ -129,6 +139,10 @@ Create a `.env.local` file in the root directory:
 GOOGLE_CLIENT_ID="your-google-client-id"
 GOOGLE_CLIENT_SECRET="your-google-client-secret"
 NEXT_PUBLIC_REDIRECT_URI="http://localhost:3000/api/auth/callback"
+
+# Optional: Mistral AI Keys (Demo mode enables if left blank)
+MISTRAL_API_KEY="your-mistral-api-key"
+MISTRAL_MODEL="mistral-small-latest"
 
 # Optional: Firebase Web SDK config (falls back to local JSON file if missing)
 NEXT_PUBLIC_FIREBASE_API_KEY=""
